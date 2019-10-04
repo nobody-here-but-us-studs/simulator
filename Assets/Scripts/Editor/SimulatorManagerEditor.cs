@@ -29,7 +29,7 @@ public static class SimulatorManagerEditor
             if (scene.name == "LoaderScene")
             {
                 var data = EditorPrefs.GetString("Simulator/DevelopmentSettings");
-                if (data != null)
+                if (!string.IsNullOrEmpty(data))
                 {
                     var json = JSONNode.Parse(data);
                     if (json["EnableAPI"].AsBool)
