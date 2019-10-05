@@ -6,6 +6,8 @@
  */
 
 using UnityEngine;
+using UnityEngine.InputSystem;
+using UnityEngine.XR;
 
 public enum CameraStateType
 {
@@ -27,7 +29,6 @@ public class SimulatorCameraController : MonoBehaviour
 
     private Camera thisCamera;
     private Transform pivot;
-    private Vector3 offset = new Vector3(0f, 2.25f, -7f);
     
     private float freeSpeed = 10f;
     private float followSpeed = 25f;
@@ -40,6 +41,8 @@ public class SimulatorCameraController : MonoBehaviour
     private Vector3 targetVelocity = Vector3.zero;
     private Vector3 lastZoom = Vector3.zero;
     public Transform targetObject;
+
+    public Vector3 Offset = new Vector3(0f, 1.15f, 0f);
 
     public CameraStateType CurrentCameraState = CameraStateType.Free;
 
@@ -68,8 +71,6 @@ public class SimulatorCameraController : MonoBehaviour
 
             controls.Camera.Boost.performed += ctx => boost = ctx.ReadValue<float>();
             controls.Camera.Boost.canceled += ctx => boost = ctx.ReadValue<float>();
-
-            controls.Camera.ToggleState.performed += ctx => SetFreeCameraState();
         }
 
         controls.Camera.MouseDelta.started += ctx => mouseInput = ctx.ReadValue<Vector2>();
@@ -138,8 +139,6 @@ public class SimulatorCameraController : MonoBehaviour
 
             if (Input.GetKeyDown(KeyCode.LeftShift)) boost += 1;
             else if (Input.GetKeyUp(KeyCode.LeftShift)) boost -= 1;
-
-            if (Input.GetKeyDown(KeyCode.BackQuote)) SetFreeCameraState();
         }
 
         switch (CurrentCameraState)
@@ -170,39 +169,38 @@ public class SimulatorCameraController : MonoBehaviour
     private void UpdateFollowCamera()
     {
         Debug.Assert(targetObject != null);
-        
-        var dist = Vector3.Distance(thisCamera.transform.position, targetObject.position);
-        if (dist < 3)
-            thisCamera.transform.localPosition = Vector3.MoveTowards(thisCamera.transform.localPosition, thisCamera.transform.InverseTransformPoint(targetObject.position), -Time.unscaledDeltaTime);
-        else if (dist > 30)
-            thisCamera.transform.localPosition = Vector3.MoveTowards(thisCamera.transform.localPosition, thisCamera.transform.InverseTransformPoint(targetObject.position), Time.unscaledDeltaTime);
-        else if (zoomInput != 0)
-            thisCamera.transform.localPosition = Vector3.MoveTowards(thisCamera.transform.localPosition, thisCamera.transform.InverseTransformPoint(targetObject.position), Time.unscaledDeltaTime * zoomInput * 10f * (boost == 1 ? 10f : 1f));
-        
-        if (mouseRight == 1)
-        {
-            defaultFollow = false;
-            targetLookFree += mouseInput.x * 0.25f;
-            targetTiltFree += mouseInput.y * 0.1f * (inverted ? -1 : 1);
-            targetTiltFree = Mathf.Clamp(targetTiltFree, -15, 65);
-            mouseFollowRot = Quaternion.Euler(targetTiltFree, targetLookFree, 0f);
-            transform.localRotation = mouseFollowRot;
-        }
-        else
-        {
-            //transform.rotation = Quaternion.LookRotation(Vector3.RotateTowards(transform.forward, (mouseFollowRot * targetObject.forward), followSpeed * Time.unscaledDeltaTime, 1f)); // TODO new state for follow camera at mouse rotation else mouseFollowRot
-            if (defaultFollow)
-                transform.rotation = Quaternion.LookRotation(Vector3.RotateTowards(transform.forward, targetObject.forward, followSpeed * Time.unscaledDeltaTime, 1f));
-            
-            targetTiltFree = transform.eulerAngles.x;
-            targetLookFree = transform.eulerAngles.y;
 
-            if (targetTiltFree > 180)
-            {
-                targetTiltFree -= 360;
-            }
-        }
-        transform.position = Vector3.SmoothDamp(transform.position, targetObject.position, ref targetVelocity, 0.1f);
+        //var dist = Vector3.Distance(thisCamera.transform.position, targetObject.position);
+        //if (dist < 3)
+        var position = InputTracking.GetLocalPosition(XRNode.CenterEye);
+        thisCamera.transform.localPosition = thisCamera.transform.InverseTransformPoint(targetObject.position);
+        //else if (dist > 30)
+        //    thisCamera.transform.localPosition = Vector3.MoveTowards(thisCamera.transform.localPosition, thisCamera.transform.InverseTransformPoint(targetObject.position), Time.unscaledDeltaTime);
+        //else if (zoomInput != 0)
+        //    thisCamera.transform.localPosition = Vector3.MoveTowards(thisCamera.transform.localPosition, thisCamera.transform.InverseTransformPoint(targetObject.position), Time.unscaledDeltaTime * zoomInput * 10f * (boost == 1 ? 10f : 1f));
+
+        //if (mouseRight == 1)
+        //{
+        //    defaultFollow = false;
+        //    targetLookFree += mouseInput.x * 0.25f;
+        //    targetTiltFree += mouseInput.y * 0.1f * (inverted ? -1 : 1);
+        //    targetTiltFree = Mathf.Clamp(targetTiltFree, -15, 65);
+        //    mouseFollowRot = Quaternion.Euler(targetTiltFree, targetLookFree, 0f);
+        //    transform.localRotation = mouseFollowRot;
+        //}
+        //else
+        //{
+            //transform.rotation = Quaternion.LookRotation(Vector3.RotateTowards(transform.forward, (mouseFollowRot * targetObject.forward), followSpeed * Time.unscaledDeltaTime, 1f)); // TODO new state for follow camera at mouse rotation else mouseFollowRot
+        if (defaultFollow)
+            transform.rotation = Quaternion.LookRotation(Vector3.RotateTowards(transform.forward, targetObject.forward, followSpeed * Time.unscaledDeltaTime, 1f));
+
+        targetTiltFree = transform.eulerAngles.x;
+        targetLookFree = transform.eulerAngles.y;
+
+        if (targetTiltFree > 180)
+            targetTiltFree -= 360;
+
+        transform.position = targetObject.position - position + Offset;
     }
 
     public void SetFollowCameraState(GameObject target)
@@ -214,21 +212,8 @@ public class SimulatorCameraController : MonoBehaviour
         transform.rotation = targetObject.rotation;
         thisCamera.transform.localRotation = Quaternion.identity;
         thisCamera.transform.localPosition = Vector3.zero;
-        thisCamera.transform.localPosition = thisCamera.transform.InverseTransformPoint(targetObject.position) + offset;
+        thisCamera.transform.localPosition = thisCamera.transform.InverseTransformPoint(targetObject.position);
         defaultFollow = true;
-        targetTiltFree = transform.eulerAngles.x;
-        targetLookFree = transform.eulerAngles.y;
-        SimulatorManager.Instance.UIManager?.SetCameraButtonState();
-    }
-
-    public void SetFreeCameraState()
-    {
-        CurrentCameraState = CameraStateType.Free;
-        targetObject = null;
-        transform.position = thisCamera.transform.position;
-        transform.rotation = thisCamera.transform.rotation;
-        thisCamera.transform.localRotation = Quaternion.identity;
-        thisCamera.transform.localPosition = Vector3.zero;
         targetTiltFree = transform.eulerAngles.x;
         targetLookFree = transform.eulerAngles.y;
         SimulatorManager.Instance.UIManager?.SetCameraButtonState();

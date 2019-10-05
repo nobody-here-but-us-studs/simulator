@@ -36,7 +36,7 @@ public class CameraManager : MonoBehaviour
 
     public void SetFreeCameraState()
     {
-        CameraController.SetFreeCameraState();
+        //CameraController.SetFreeCameraState();
     }
 
     public void ToggleCameraState()
