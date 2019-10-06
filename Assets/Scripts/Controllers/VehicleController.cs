@@ -10,6 +10,7 @@ using System.Collections.Generic;
 using Simulator;
 using Simulator.Api;
 using System.Linq;
+using System;
 
 public class VehicleController : AgentController
 {
@@ -30,6 +31,9 @@ public class VehicleController : AgentController
     private float turnSignalOffThreshold = 0.1f;
     private bool resetTurnIndicator = false;
     private double startTime;
+
+    private bool FollowingWaypoints;
+    private float TurnTrashhold = 0.03f;
 
     // api do not remove
     private bool sticky = false;
@@ -56,6 +60,7 @@ public class VehicleController : AgentController
         inputs.AddRange(GetComponentsInChildren<IVehicleInputs>());
         initialPosition = transform.position;
         initialRotation = transform.rotation;
+        FollowingWaypoints = true;
     }
 
     private void UpdateInput()
@@ -79,9 +84,30 @@ public class VehicleController : AgentController
     private void UpdateInputAPI()
     {
         if (!sticky) return;
-        
+
+        if (FollowingWaypoints)
+        {
+            FollowWaypoints();
+            return;
+        }
+
         SteerInput = stickySteering;
         AccelInput = stickAcceleraton;
+    }
+
+    private void FollowWaypoints()
+    {
+        var pos = new Vector3(50, 50, 50);
+
+        var steerVector = (pos - transform.position).normalized;
+        float steer = Vector3.Angle(steerVector, transform.forward) / 90.0f;
+        var targetTurn = Vector3.Cross(transform.forward, steerVector).y < 0 ? -steer : steer;
+
+        SteerInput += 120.0f * Time.deltaTime * (targetTurn - SteerInput);
+        if (Math.Abs(SteerInput) < TurnTrashhold)
+            SteerInput = 0.0f;
+
+        AccelInput = 0.5f;
     }
 
     private void UpdateLights()
